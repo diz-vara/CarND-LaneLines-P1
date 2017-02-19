@@ -68,11 +68,6 @@ print('This image is:', type(image), 'with dimesions:', image.shape)
 showBGR(image)
 
 
-center = Point(0.5, 0.5)
-
-roi = Trapezia(-0.05, 1, 0.1, 0.8)
-
-houghParameters = HoughParameters(1,1, 30, 120, 20)
 
 # ## Ideas for Lane Detection Pipeline
 
@@ -123,6 +118,13 @@ class HoughParameters:
         self.maxGap = maxgap
         
 
+class GaussParameters:
+    def __init__ (self, kX, kY, sigmaX, sigmaY):
+        self.kernelX = kX
+        self.kernelY = kY
+        self.sigmaX = sigmaX
+        self.sigmaY = sigmaY
+        
 
 # just shows BGR image
 def showBGR(img):
@@ -169,13 +171,13 @@ def grayscale(img):
     # Or use BGR2GRAY if you read an image with cv2.imread()
     # return cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     
-def canny(img, low_threshold, high_threshold):
+def canny(img, parameters):
     """Applies the Canny transform"""
-    return cv2.Canny(img, low_threshold, high_threshold)
+    return cv2.Canny(img, parameters.low, parameters.high)
 
-def gaussian_blur(img, kernel_size):
+def gaussian_blur(img, p):
     """Applies a Gaussian Noise kernel"""
-    return cv2.GaussianBlur(img, (kernel_size, kernel_size), 0)
+    return cv2.GaussianBlur(img, (p.kernelX, p.kernelY), p.sigmaX, sigmaY = p.sigmaY)
 
 def region_of_interest(img, vertices):
     """
@@ -255,13 +257,16 @@ def weighted_img(img, initial_img, α=0.8, β=1., λ=0.):
     """
     return cv2.addWeighted(initial_img, α, img, β, λ)
 
-
+# <codecell> my function
+# ## Build a Lane Finding Pipeline
+# 
+# 
 def detectLanes(img) :
     global gray
     scaled, scale = rescale2width(img,480)
     gray = grayscale(scaled);
-    gray = cv2.GaussianBlur(gray,(3, 3), 0.5, sigmaY=2)
-    gray = canny(gray, cannyParameters.low, cannyParameters.high)
+    gray = gaussian_blur(gray,gaussParameters)
+    gray = canny(gray, cannyParameters)
     gray = maskROI(gray, roi, center);
     lines = hough_lines(gray, houghParameters.rho,
                         houghParameters.theta, 
@@ -280,16 +285,32 @@ def detectLanes(img) :
 # In[4]:
 
 import os
-os.listdir("test_images/")
+images = os.listdir("test_images/")
+
+# <codecell>
+
+center = Point(0.5, 0.5)
+roi = Trapezia(-0.05, 1, 0.1, 0.8)
+houghParameters = HoughParameters(1,1, 50, 20, 20)
+cannyParameters = CannyParameters(50,170)
+gaussParameters = GaussParameters(3,3,0.5,2)
+
+for name in images:
+    image = cv2.imread("test_images/" + name)
+    o = detectLanes(image)
+    print(name)
+    plt.figure(name)
+    showBGR(o)
+    #input("Press Enter to continue...")
+    
+    
 
 
-# ## Build a Lane Finding Pipeline
-# 
-# 
 
 # Build the pipeline and run your solution on all test_images. Make copies into the test_images directory, and you can use the images in your writeup report.
 # 
 # Try tuning the various parameters, especially the low and high Canny thresholds as well as the Hough lines parameters.
+
 
 # In[5]:
 
