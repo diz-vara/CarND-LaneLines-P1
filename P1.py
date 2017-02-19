@@ -260,7 +260,7 @@ def detectLanes(img) :
     global gray
     scaled, scale = rescale2width(img,480)
     gray = grayscale(scaled);
-    gray = cv2.GaussianBlur(gray,(3, 3), 1, sigmaY=1)
+    gray = cv2.GaussianBlur(gray,(3, 3), 0.5, sigmaY=2)
     gray = canny(gray, cannyParameters.low, cannyParameters.high)
     gray = maskROI(gray, roi, center);
     lines = hough_lines(gray, houghParameters.rho,
