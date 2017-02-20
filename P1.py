@@ -119,18 +119,26 @@ class HoughParameters:
         
 
 class GaussParameters:
-    def __init__ (self, kX, kY, sigmaX, sigmaY):
+    def __init__ (self, kX=3, kY=3, sigmaX=1, sigmaY=1):
         self.kernelX = kX
         self.kernelY = kY
         self.sigmaX = sigmaX
         self.sigmaY = sigmaY
         
-
+class ThrParameters:
+    def __init__ (self, kx=3, ky=3, thr=15):
+        self.kernelX = kx
+        self.kernelY = ky
+        self.threshold = thr
+        
 # just shows BGR image
 def showBGR(img):
-    b,g,r = cv2.split(img)    # get b,g,r
-    rgb_img = cv2.merge([r,g,b])
-    plt.imshow(rgb_img)  
+    if (len(img.shape) > 2) :
+        b,g,r = cv2.split(img)    # get b,g,r
+        rgb_img = cv2.merge([r,g,b])
+        plt.imshow(rgb_img)  
+    else:
+        plt.imshow(img, cmap='gray')
     
 #rescale image to new width (preserving proportions)    
 def rescale2width(img, newWidth):
@@ -161,19 +169,35 @@ def maskROI(img, roi, center):
                           dtype = np.int32)
     return region_of_interest(img, vertices)
     
-def grayscale(img):
+def grayscale(img, mode):
     """Applies the Grayscale transform
     This will return an image with only one color channel
-    but NOTE: to see the returned image as grayscale
-    (assuming your grayscaled image is called 'gray')
-    you should call plt.imshow(gray, cmap='gray')"""
-    return cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    # Or use BGR2GRAY if you read an image with cv2.imread()
-    # return cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+"""
+    if (mode == cv2.COLOR_BGR2GRAY or mode == cv2.COLOR_RGB2GRAY):
+        return cv2.cvtColor(img, mode)
+    else:
+        bgr = cv2.split(img)
+        if (mode <0 or mode > img.shape[2]):
+            mode = 0;
+        return bgr[mode]
+
+        
+    
     
 def canny(img, parameters):
     """Applies the Canny transform"""
     return cv2.Canny(img, parameters.low, parameters.high)
+    
+def extract_lines(img, p):
+     """
+     extracts white regions by substracting 
+     gray-eroded version of the input image
+     """
+     kernel = np.ones( (p.kernelY, p.kernelX,  1), dtype=np.uint8)
+     eroded = cv2.erode(img, kernel)
+     out = cv2.threshold( img - eroded, p.threshold, 255, cv2.THRESH_BINARY)
+     return out[1]
+     
 
 def gaussian_blur(img, p):
     """Applies a Gaussian Noise kernel"""
@@ -262,18 +286,19 @@ def weighted_img(img, initial_img, α=0.8, β=1., λ=0.):
 # 
 # 
 def detectLanes(img) :
-    global gray
-    scaled, scale = rescale2width(img,480)
-    gray = grayscale(scaled);
-    gray = gaussian_blur(gray,gaussParameters)
-    gray = canny(gray, cannyParameters)
+    global gray;
+    scaled, scale = rescale2width(img,480);
+    gray = grayscale(scaled,2);
+    gray = gaussian_blur(gray,gaussParameters);
+    #gray = canny(gray, cannyParameters)
+    gray = extract_lines(gray, thrParameters);
     gray = maskROI(gray, roi, center);
     lines = hough_lines(gray, houghParameters.rho,
                         houghParameters.theta, 
                         houghParameters.thr,
                         houghParameters.minLen,
-                        houghParameters.maxGap)
-    return weighted_img(scaled, lines)
+                        houghParameters.maxGap);
+    return weighted_img(scaled, lines);
     
 
         
@@ -285,16 +310,26 @@ def detectLanes(img) :
 # In[4]:
 
 import os
-images = os.listdir("test_images/")
+imageDir="test_images/"
+
+images = os.listdir(imageDir)
+
+def imreadN(N):
+    image = cv2.imread(imageDir + images[N])
+    return image
+    
 
 # <codecell>
 
-center = Point(0.5, 0.5)
+center = Point(0.5, 0.6)
 roi = Trapezia(-0.05, 1, 0.1, 0.8)
-houghParameters = HoughParameters(1,1, 50, 20, 20)
+houghParameters = HoughParameters(1,1, 20, 30, 20)
 cannyParameters = CannyParameters(50,170)
-gaussParameters = GaussParameters(3,3,0.5,2)
+gaussParameters = GaussParameters(3,3,1,2)
+thrParameters = ThrParameters(5,2,25)
 
+
+# <codecell>
 for name in images:
     image = cv2.imread("test_images/" + name)
     o = detectLanes(image)
