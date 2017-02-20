@@ -259,9 +259,9 @@ def hough_lines(img, rho, theta, threshold, min_line_len, max_line_gap):
     line_img = np.zeros((img.shape[0], img.shape[1], 3), dtype=np.uint8)
     if (lines is not None and len(lines) > 0) :
         draw_lines(line_img, lines)
-        return line_img
+        return line_img, lines
     else:
-        return img
+        return img, None
         
 
     
@@ -293,12 +293,13 @@ def detectLanes(img) :
     #gray = canny(gray, cannyParameters)
     gray = extract_lines(gray, thrParameters);
     gray = maskROI(gray, roi, center);
-    lines = hough_lines(gray, houghParameters.rho,
+    o,lines = hough_lines(gray, houghParameters.rho,
                         houghParameters.theta, 
                         houghParameters.thr,
                         houghParameters.minLen,
                         houghParameters.maxGap);
-    return weighted_img(scaled, lines);
+    return weighted_img(scaled, o), lines;
+
     
 
         
@@ -323,7 +324,7 @@ def imreadN(N):
 
 center = Point(0.5, 0.6)
 roi = Trapezia(-0.05, 1, 0.1, 0.8)
-houghParameters = HoughParameters(1,1, 20, 30, 20)
+houghParameters = HoughParameters(1,1, 20, 11, 14)
 cannyParameters = CannyParameters(50,170)
 gaussParameters = GaussParameters(3,3,1,2)
 thrParameters = ThrParameters(5,2,25)
@@ -332,7 +333,7 @@ thrParameters = ThrParameters(5,2,25)
 # <codecell>
 for name in images:
     image = cv2.imread("test_images/" + name)
-    o = detectLanes(image)
+    o, lines = detectLanes(image)
     print(name)
     plt.figure(name)
     showBGR(o)
