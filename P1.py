@@ -256,12 +256,7 @@ def hough_lines(img, rho, theta, threshold, min_line_len, max_line_gap):
     Returns an image with hough lines drawn.
     """
     lines = cv2.HoughLinesP(img, rho, theta, threshold, np.array([]), minLineLength=min_line_len, maxLineGap=max_line_gap)
-    line_img = np.zeros((img.shape[0], img.shape[1], 3), dtype=np.uint8)
-    if (lines is not None and len(lines) > 0) :
-        draw_lines(line_img, lines)
-        return line_img, lines
-    else:
-        return img, None
+    return lines
         
 
     
@@ -293,12 +288,15 @@ def detectLanes(img) :
     #gray = canny(gray, cannyParameters)
     gray = extract_lines(gray, thrParameters);
     gray = maskROI(gray, roi, center);
-    o,lines = hough_lines(gray, houghParameters.rho,
+    lines = hough_lines(gray, houghParameters.rho,
                         houghParameters.theta, 
                         houghParameters.thr,
                         houghParameters.minLen,
                         houghParameters.maxGap);
-    return weighted_img(scaled, o), lines;
+    out = img.copy()    
+    # I do not use weighted image                
+    draw_lines(out, (lines/scale).astype(int))                    
+    return out, lines;
 
     
 
@@ -322,7 +320,7 @@ def imreadN(N):
 
 # <codecell>
 
-center = Point(0.5, 0.6)
+center = Point(0.5, 0.65)
 roi = Trapezia(-0.05, 1, 0.1, 0.8)
 houghParameters = HoughParameters(1,1, 20, 11, 14)
 cannyParameters = CannyParameters(50,170)
