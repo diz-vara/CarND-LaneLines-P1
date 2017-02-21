@@ -256,15 +256,10 @@ def hough_lines(img, rho, theta, threshold, min_line_len, max_line_gap):
     Returns an image with hough lines drawn.
     """
     lines = cv2.HoughLinesP(img, rho, theta, threshold, np.array([]), minLineLength=min_line_len, maxLineGap=max_line_gap)
-    line_img = np.zeros((img.shape[0], img.shape[1], 3), dtype=np.uint8)
-    if (lines is not None and len(lines) > 0) :
-        draw_lines(line_img, lines)
-        return line_img, lines
-    else:
-        return img, None
-        
-
+    #line_img = np.zeros((img.shape[0], img.shape[1], 3), dtype=np.uint8)
+    return lines
     
+   
 # Python 3 has support for cool math symbols.
 
 def weighted_img(img, initial_img, α=0.8, β=1., λ=0.):
@@ -293,12 +288,14 @@ def detectLanes(img) :
     #gray = canny(gray, cannyParameters)
     gray = extract_lines(gray, thrParameters);
     gray = maskROI(gray, roi, center);
-    o,lines = hough_lines(gray, houghParameters.rho,
+    lines = hough_lines(gray, houghParameters.rho,
                         houghParameters.theta, 
                         houghParameters.thr,
                         houghParameters.minLen,
                         houghParameters.maxGap);
-    return weighted_img(scaled, o), lines;
+    o =img.copy();
+    draw_lines(o, (lines / scale).astype(int));                    
+    return o, lines;
 
     
 
@@ -324,9 +321,9 @@ def imreadN(N):
 
 center = Point(0.5, 0.6)
 roi = Trapezia(-0.05, 1, 0.1, 0.8)
-houghParameters = HoughParameters(1,1, 20, 11, 14)
+houghParameters = HoughParameters(1,1, 14, 8, 5)
 cannyParameters = CannyParameters(50,170)
-gaussParameters = GaussParameters(3,3,1,2)
+gaussParameters = GaussParameters(3,3,0.5,2.5)
 thrParameters = ThrParameters(5,2,25)
 
 
