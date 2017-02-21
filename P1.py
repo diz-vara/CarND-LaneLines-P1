@@ -193,9 +193,11 @@ def extract_lines(img, p):
      extracts white regions by substracting 
      gray-eroded version of the input image
      """
-     kernel = np.ones( (p.kernelY, p.kernelX,  1), dtype=np.uint8)
-     eroded = cv2.erode(img, kernel)
-     out = cv2.threshold( img - eroded, p.threshold, 255, cv2.THRESH_BINARY)
+     #kernel = np.ones( (p.kernelY, p.kernelX,  1), dtype=np.uint8)
+     #eroded = cv2.erode(img, kernel)
+     median = cv2.medianBlur(img,9)
+     median = cv2.subtract(img, median)
+     out = cv2.threshold( median, p.threshold, 255, cv2.THRESH_BINARY)
      return out[1]
      
 
@@ -276,15 +278,66 @@ def weighted_img(img, initial_img, α=0.8, β=1., λ=0.):
     """
     return cv2.addWeighted(initial_img, α, img, β, λ)
 
+# <codecell> lines filtering
+def filter_lines(lines, center, roi, shape):
+    top = (center.Y - 0.1 ) * shape[0]
+    cX = center.X * shape[0]
+    bottom = (center.Y + roi.bottom) * shape[0]
+    if (bottom > shape[0]) :
+        bottom  = shape[0]
+    leftB = (center.X - roi.widthbottom/2) * shape[1]
+    rightB = (center.Y + roi.widthbottom/2) * shape[1]
+    leftT = (center.X - roi.widthtop/2) * shape[1]
+    rightT = (center.Y + roi.widthtop/2) * shape[1]
+
+    raw_lines = []
+    left  = np.array(4)
+    nL = 0
+    right = np.array(4)
+    nR = 0
+
+
+    for _line in lines:
+        line = _line[0].tolist();
+        x0 = line[0]
+        x1 = line[2]
+        w = x1 - x0
+        h = line[3] - line[1]
+        if ( h == 0): 
+            h = 1e-5
+        
+        if w > 0:
+            x0 = x1 + (bottom-line[3]) * w /h
+            x1 = x1 + (top-line[3])*w / h
+        if (x0 > leftB and x1 > leftT and x0 < rightB and x1 < rightT):
+            raw_lines.append(line)
+            newLine = [x0, bottom, x1, top]
+            if ( x0 < cX) :
+                left = left + newLine
+                nL = nL + 1
+            else:
+                right = right + newLine
+                nR = nR + 1
+                
+            
+    if (nL > 1):
+        left = left/nL
+    if (nR > 1):
+        right = right/nR
+        
+    return raw_lines, (left, right)   
+
+    
 # <codecell> my function
 # ## Build a Lane Finding Pipeline
 # 
 # 
 def detectLanes(img) :
     global gray;
+    #global lines;
     scaled, scale = rescale2width(img,480);
     gray = grayscale(scaled,2);
-    gray = gaussian_blur(gray,gaussParameters);
+    #gray = gaussian_blur(gray,gaussParameters);
     #gray = canny(gray, cannyParameters)
     gray = extract_lines(gray, thrParameters);
     gray = maskROI(gray, roi, center);
@@ -293,6 +346,7 @@ def detectLanes(img) :
                         houghParameters.thr,
                         houghParameters.minLen,
                         houghParameters.maxGap);
+    #raw_lines, lr_lines = filter_lines(lines, center, roi, gray.shape)
     o =img.copy();
     draw_lines(o, (lines / scale).astype(int));                    
     return o, lines;
@@ -320,7 +374,7 @@ def imreadN(N):
 # <codecell>
 
 center = Point(0.5, 0.6)
-roi = Trapezia(-0.05, 1, 0.1, 0.8)
+roi = Trapezia(-0.05, 1, 0.1, 0.9)
 houghParameters = HoughParameters(1,1, 14, 8, 5)
 cannyParameters = CannyParameters(50,170)
 gaussParameters = GaussParameters(3,3,0.5,2.5)
