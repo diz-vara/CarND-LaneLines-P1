@@ -188,7 +188,7 @@ def canny(img, parameters):
     """Applies the Canny transform"""
     return cv2.Canny(img, parameters.low, parameters.high)
     
-def extract_lines(img, p):
+def extract_lines(img, tp, gp):
      """
      extracts white regions by substracting 
      gray-eroded version of the input image
@@ -197,7 +197,8 @@ def extract_lines(img, p):
      #eroded = cv2.erode(img, kernel)
      median = cv2.medianBlur(img,9)
      median = cv2.subtract(img, median)
-     out = cv2.threshold( median, p.threshold, 255, cv2.THRESH_BINARY)
+     median = gaussian_blur(median, gp)
+     out = cv2.threshold( median, tp.threshold, 255, cv2.THRESH_BINARY)
      return out[1]
      
 
@@ -280,15 +281,15 @@ def weighted_img(img, initial_img, α=0.8, β=1., λ=0.):
 
 # <codecell> lines filtering
 def filter_lines(lines, center, roi, shape):
-    top = (center.Y - 0.1 ) * shape[0]
+    top = (center.Y + 0.05) * shape[0]
     cX = center.X * shape[0]
     bottom = (center.Y + roi.bottom) * shape[0]
     if (bottom > shape[0]) :
         bottom  = shape[0]
     leftB = (center.X - roi.widthbottom/2) * shape[1]
     rightB = (center.Y + roi.widthbottom/2) * shape[1]
-    leftT = (center.X - roi.widthtop/2) * shape[1]
-    rightT = (center.Y + roi.widthtop/2) * shape[1]
+    leftT = (center.X - roi.widthtop) * shape[1]
+    rightT = (center.Y + roi.widthtop) * shape[1]
 
     raw_lines = []
     left  = np.array(4)
@@ -339,17 +340,18 @@ def detectLanes(img) :
     gray = grayscale(scaled,2);
     #gray = gaussian_blur(gray,gaussParameters);
     #gray = canny(gray, cannyParameters)
-    gray = extract_lines(gray, thrParameters);
+    gray = extract_lines(gray, thrParameters, gaussParameters);
     gray = maskROI(gray, roi, center);
     lines = hough_lines(gray, houghParameters.rho,
                         houghParameters.theta, 
                         houghParameters.thr,
                         houghParameters.minLen,
                         houghParameters.maxGap);
-    #raw_lines, lr_lines = filter_lines(lines, center, roi, gray.shape)
+    raw_lines, lr_lines = filter_lines(lines, center, roi, gray.shape)
     o =img.copy();
-    draw_lines(o, (lines / scale).astype(int));                    
-    return o, lines;
+    draw_lines(o, (np.array([lr_lines])/scale).astype(int),[0,200,0],4)
+    draw_lines(o, (np.array([raw_lines]) / scale).astype(int));                    
+    return o, lr_lines;
 
     
 
@@ -375,7 +377,7 @@ def imreadN(N):
 
 center = Point(0.5, 0.6)
 roi = Trapezia(-0.05, 1, 0.1, 0.9)
-houghParameters = HoughParameters(1,1, 14, 8, 5)
+houghParameters = HoughParameters(1,1, 12, 9, 5)
 cannyParameters = CannyParameters(50,170)
 gaussParameters = GaussParameters(3,3,0.5,2.5)
 thrParameters = ThrParameters(5,2,25)
