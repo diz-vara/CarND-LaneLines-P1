@@ -11,6 +11,10 @@ The goals / steps of this project are the following:
 * Make a pipeline that finds lane lines on the road
 * Reflect on your work in a written report
 
+---
+**Results (images and videos with lane marking) are in the ./out directory**
+---
+
 
 [//]: # (Image References)
 [image1]: ./examples/gray.png
@@ -63,7 +67,7 @@ The next image shows the result with raw line segments in red and
 averaged lines shown in green.
 ![image3]
 
-###2. Identify potential shortcomings with your current pipeline
+###2. Identify potential shortcomings
 This pipeline has a number of shortcomings:
 - it is extremely sensitive to the change of camera position/orientation
 - it doesn't work in 'night mode'
@@ -71,7 +75,7 @@ This pipeline has a number of shortcomings:
 - it will have problem with short and sparse lane marking
 - it will give wrong results in case of complex marking (several lines close to each other)
 
-###3. Suggest possible improvements to your pipeline
+###3. Possible improvements
 
 A possible improvement would be to:
 - dynamically update ROI position by vanishing point recalculation
