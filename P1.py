@@ -399,7 +399,7 @@ def imreadN(N):
 # then save them to the test_images directory.
 
 center = Point(0.5, 0.6)
-roi = Trapezia(-0.05, 0.55, 0.14, 0.9)
+roi = Trapezia(-0.00, 0.55, 0.1, 0.9)
 houghParameters = HoughParameters(1,1, 12, 8, 4)
 gaussParameters = GaussParameters(3,3,0.5,2)
 thrParameters = ThrParameters(9,2,14)
