@@ -190,8 +190,8 @@ def canny(img, parameters):
     
 def extract_lines(img, tp, gp):
      """
-     extracts white regions by substracting 
-     gray-eroded version of the input image
+     extracts white regions by subtracting 
+     blurred version of the input image
      """
      #kernel = np.ones( (p.kernelY, p.kernelX,  1), dtype=np.uint8)
      #eroded = cv2.erode(img, kernel)
@@ -336,7 +336,7 @@ def filter_lines(lines, center, roi, shape):
 # ## Build a Lane Finding Pipeline
 # 
 # 
-def detectLanes(img, mode=2, drawRaw = True) :
+def detectLanes(img, mode=2) :
     #global gray;
     #global lr_lines;
     scaled, scale = rescale2width(img,480);
@@ -348,12 +348,21 @@ def detectLanes(img, mode=2, drawRaw = True) :
     lines = hough_lines(gray, houghParameters)
     o =img.copy();
 
-    if (lines != None and len(lines) > 0):
+    if (not 'drawingMode' in globals()):
+        drawingMode = 3
+        
+    if (mode == 0):
+        rawColor = [150,0,0]
+    else:
+        rawColor = [0,0,150]
+    
+
+    if (type(lines) == np.ndarray and len(lines) > 0):
         raw_lines, lr_lines = filter_lines(lines, center, roi, gray.shape)
-        if ( len (lr_lines) > 0):
+        if ( (drawingMode & 2) and len (lr_lines) > 0):
             draw_lines(o, (np.array([lr_lines])/scale).astype(int),[0,200,0],4)
-        if ( drawRaw and len(raw_lines) > 0):    
-            draw_lines(o, (np.array([raw_lines]) / scale).astype(int),[0,0,150],1);                    
+        if ( (drawingMode & 1) and len(raw_lines) > 0):    
+            draw_lines(o, (np.array([raw_lines]) / scale).astype(int),rawColor,2);                    
 
         return o, lr_lines;
     else:
@@ -372,10 +381,10 @@ def detectLanes(img, mode=2, drawRaw = True) :
 import os
 imageDir="test_images/"
 
-images = os.listdir(imageDir)
+image_list = os.listdir(imageDir)
 
 def imreadN(N):
-    image = cv2.imread(imageDir + images[N])
+    image = cv2.imread(imageDir + image_list[N])
     return image
     
 
@@ -395,9 +404,19 @@ houghParameters = HoughParameters(1,1, 12, 8, 4)
 gaussParameters = GaussParameters(3,3,0.5,2)
 thrParameters = ThrParameters(9,2,14)
 mode = 2 #red in BGR 
+imageDir = 'test_images/'
+outDir = 'out'
+RAW = 1
+AVR = 2
+BOTH = 3
+drawingMode = BOTH
 
 
-for filename in images:
+if (not os.path.isdir(outDir) ):
+    os.mkdir(outDir)
+
+
+for filename in image_list:
     image = cv2.imread("test_images/" + filename)
     o, lines = detectLanes(image,mode)
     print(filename)
@@ -450,16 +469,15 @@ from IPython.display import HTML
 
 def process_image(image):
     # here I call detectLanes with mode == 0 (Red in RGB)
-    result, lr = detectLanes(image,0, drawRaw=False)
+    result, lr = detectLanes(image,0)
 
     return result
-
 
 # Let's try the one with the solid white lane on the right first ...
 
 # In[7]:
-
-white_output = 'white.mp4'
+drawingMode = RAW
+white_output = 'out/white.mp4'
 clip1 = VideoFileClip("solidWhiteRight.mp4")
 white_clip = clip1.fl_image(process_image) #NOTE: this function expects color images!!
 get_ipython().magic('time white_clip.write_videofile(white_output, audio=False)')
@@ -485,8 +503,8 @@ HTML("""
 # Now for the one with the solid yellow lane on the left. This one's more tricky!
 
 # In[ ]:
-
-yellow_output = 'yellow.mp4'
+drawingMode=2
+yellow_output = 'out/yellow.mp4'
 clip2 = VideoFileClip('solidYellowLeft.mp4')
 yellow_clip = clip2.fl_image(process_image)
 get_ipython().magic('time yellow_clip.write_videofile(yellow_output, audio=False)')
@@ -512,7 +530,7 @@ HTML("""
 
 # In[ ]:
 
-challenge_output = 'extra.mp4'
+challenge_output = 'out/extra.mp4'
 clip2 = VideoFileClip('challenge.mp4')
 challenge_clip = clip2.fl_image(process_image)
 get_ipython().magic('time challenge_clip.write_videofile(challenge_output, audio=False)')
