@@ -336,11 +336,11 @@ def filter_lines(lines, center, roi, shape):
 # ## Build a Lane Finding Pipeline
 # 
 # 
-def detectLanes(img) :
+def detectLanes(img, mode=2, drawRaw = True) :
     #global gray;
     #global lr_lines;
     scaled, scale = rescale2width(img,480);
-    gray = grayscale(scaled,2);
+    gray = grayscale(scaled, mode);
     #gray = gaussian_blur(gray,gaussParameters);
     #gray = canny(gray, cannyParameters)
     gray = extract_lines(gray, thrParameters, gaussParameters);
@@ -350,9 +350,9 @@ def detectLanes(img) :
 
     if (lines != None and len(lines) > 0):
         raw_lines, lr_lines = filter_lines(lines, center, roi, gray.shape)
-        if (len (lr_lines) > 0):
+        if ( len (lr_lines) > 0):
             draw_lines(o, (np.array([lr_lines])/scale).astype(int),[0,200,0],4)
-        if ( len(raw_lines) > 0):    
+        if ( drawRaw and len(raw_lines) > 0):    
             draw_lines(o, (np.array([raw_lines]) / scale).astype(int),[0,0,150],1);                    
 
         return o, lr_lines;
@@ -382,18 +382,24 @@ def imreadN(N):
 
 
 # <codecell>
+# Build the pipeline and run your solution on all test_images. Make copies into the test_images directory, and you can use the images in your writeup report.
+# 
+# Try tuning the various parameters, especially the low and high Canny thresholds as well as the Hough lines parameters.
 
+# TODO: Build your pipeline that will draw lane lines on the test_images
+# then save them to the test_images directory.
 
 center = Point(0.5, 0.6)
 roi = Trapezia(-0.05, 0.55, 0.14, 0.9)
 houghParameters = HoughParameters(1,1, 12, 8, 4)
 gaussParameters = GaussParameters(3,3,0.5,2)
 thrParameters = ThrParameters(9,2,14)
+mode = 2 #red in BGR 
 
 
 for filename in images:
     image = cv2.imread("test_images/" + filename)
-    o, lines = detectLanes(image)
+    o, lines = detectLanes(image,mode)
     print(filename)
     plt.figure(filename)
     showBGR(o)
@@ -405,15 +411,10 @@ for filename in images:
 
 
 
-# Build the pipeline and run your solution on all test_images. Make copies into the test_images directory, and you can use the images in your writeup report.
-# 
-# Try tuning the various parameters, especially the low and high Canny thresholds as well as the Hough lines parameters.
 
 
 # In[5]:
 
-# TODO: Build your pipeline that will draw lane lines on the test_images
-# then save them to the test_images directory.
 
 
 # ## Test on Videos
@@ -436,6 +437,8 @@ for filename in images:
 # ```
 # **Follow the instructions in the error message and check out [this forum post](https://carnd-forums.udacity.com/display/CAR/questions/26218840/import-videofileclip-error) for more troubleshooting tips across operating systems.**
 
+
+
 # In[3]:
 
 # Import everything needed to edit/save/watch video clips
@@ -446,10 +449,8 @@ from IPython.display import HTML
 # In[6]:
 
 def process_image(image):
-    # NOTE: The output you return should be a color image (3 channel) for processing video below
-    # TODO: put your pipeline here,
-    # you should return the final output (image where lines are drawn on lanes)
-    result = image
+    # here I call detectLanes with mode == 0 (Red in RGB)
+    result, lr = detectLanes(image,0, drawRaw=False)
 
     return result
 
