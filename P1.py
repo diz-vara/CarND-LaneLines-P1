@@ -252,13 +252,13 @@ def draw_lines(img, lines, color=[0, 0, 255], thickness=2):
         for x1,y1,x2,y2 in line:
             cv2.line(img, (x1, y1), (x2, y2), color, thickness)
 
-def hough_lines(img, rho, theta, threshold, min_line_len, max_line_gap):
+def hough_lines(img, hp):
     """
     `img` should be the output of a Canny transform.
         
     Returns an image with hough lines drawn.
     """
-    lines = cv2.HoughLinesP(img, rho, theta, threshold, np.array([]), minLineLength=min_line_len, maxLineGap=max_line_gap)
+    lines = cv2.HoughLinesP(img, hp.rho, hp.theta*np.pi/180, hp.thr, np.array([]), minLineLength=hp.minLen, maxLineGap=hp.maxGap)
     #line_img = np.zeros((img.shape[0], img.shape[1], 3), dtype=np.uint8)
     return lines
     
@@ -345,11 +345,7 @@ def detectLanes(img) :
     #gray = canny(gray, cannyParameters)
     gray = extract_lines(gray, thrParameters, gaussParameters);
     gray = maskROI(gray, roi, center);
-    lines = hough_lines(gray, houghParameters.rho,
-                        houghParameters.theta, 
-                        houghParameters.thr,
-                        houghParameters.minLen,
-                        houghParameters.maxGap);
+    lines = hough_lines(gray, houghParameters)
     o =img.copy();
 
     if (lines != None and len(lines) > 0):
@@ -388,20 +384,21 @@ def imreadN(N):
 # <codecell>
 
 
-center = Point(0.5, 0.65)
-roi = Trapezia(-0.05, 1, 0.1, 0.8)
+center = Point(0.5, 0.6)
+roi = Trapezia(-0.05, 0.55, 0.14, 0.9)
 houghParameters = HoughParameters(1,1, 12, 8, 4)
-#cannyParameters = CannyParameters(50,170)
 gaussParameters = GaussParameters(3,3,0.5,2)
 thrParameters = ThrParameters(9,2,14)
 
 
-for name in images:
-    image = cv2.imread("test_images/" + name)
+for filename in images:
+    image = cv2.imread("test_images/" + filename)
     o, lines = detectLanes(image)
-    print(name)
-    plt.figure(name)
+    print(filename)
+    plt.figure(filename)
     showBGR(o)
+    outname = "out/" + filename
+    cv2.imwrite(outname,o)
     #input("Press Enter to continue...")
     
     
