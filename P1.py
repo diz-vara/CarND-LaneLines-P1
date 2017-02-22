@@ -195,7 +195,7 @@ def extract_lines(img, tp, gp):
      """
      #kernel = np.ones( (p.kernelY, p.kernelX,  1), dtype=np.uint8)
      #eroded = cv2.erode(img, kernel)
-     median = cv2.medianBlur(img,9)
+     median = cv2.medianBlur(img,tp.kernelX)
      median = cv2.subtract(img, median)
      median = gaussian_blur(median, gp)
      out = cv2.threshold( median, tp.threshold, 255, cv2.THRESH_BINARY)
@@ -281,7 +281,7 @@ def weighted_img(img, initial_img, α=0.8, β=1., λ=0.):
 
 # <codecell> lines filtering
 def filter_lines(lines, center, roi, shape):
-    top = (center.Y + 0.05) * shape[0]
+    top = (center.Y) * shape[0]
     cX = center.X * shape[0]
     bottom = (center.Y + roi.bottom) * shape[0]
     if (bottom > shape[0]) :
@@ -320,13 +320,16 @@ def filter_lines(lines, center, roi, shape):
                 right = right + newLine
                 nR = nR + 1
                 
-            
-    if (nL > 1):
+                
+    lr = []        
+    if (nL >= 1):
         left = left/nL
-    if (nR > 1):
+        lr.append(left)
+    if (nR >= 1):
         right = right/nR
+        lr.append(right)
         
-    return raw_lines, (left, right)   
+    return raw_lines, lr   
 
     
 # <codecell> my function
@@ -334,8 +337,8 @@ def filter_lines(lines, center, roi, shape):
 # 
 # 
 def detectLanes(img) :
-    global gray;
-    #global lines;
+    #global gray;
+    #global lr_lines;
     scaled, scale = rescale2width(img,480);
     gray = grayscale(scaled,2);
     #gray = gaussian_blur(gray,gaussParameters);
@@ -347,11 +350,18 @@ def detectLanes(img) :
                         houghParameters.thr,
                         houghParameters.minLen,
                         houghParameters.maxGap);
-    raw_lines, lr_lines = filter_lines(lines, center, roi, gray.shape)
     o =img.copy();
-    draw_lines(o, (np.array([lr_lines])/scale).astype(int),[0,200,0],4)
-    draw_lines(o, (np.array([raw_lines]) / scale).astype(int));                    
-    return o, lr_lines;
+
+    if (lines != None and len(lines) > 0):
+        raw_lines, lr_lines = filter_lines(lines, center, roi, gray.shape)
+        if (len (lr_lines) > 0):
+            draw_lines(o, (np.array([lr_lines])/scale).astype(int),[0,200,0],4)
+        if ( len(raw_lines) > 0):    
+            draw_lines(o, (np.array([raw_lines]) / scale).astype(int),[0,0,150],1);                    
+
+        return o, lr_lines;
+    else:
+        return o, [];        
 
     
 
@@ -373,17 +383,19 @@ def imreadN(N):
     return image
     
 
-# <codecell>
-
-center = Point(0.5, 0.6)
-roi = Trapezia(-0.05, 1, 0.1, 0.9)
-houghParameters = HoughParameters(1,1, 12, 9, 5)
-cannyParameters = CannyParameters(50,170)
-gaussParameters = GaussParameters(3,3,0.5,2.5)
-thrParameters = ThrParameters(5,2,25)
 
 
 # <codecell>
+
+
+center = Point(0.5, 0.65)
+roi = Trapezia(-0.05, 1, 0.1, 0.8)
+houghParameters = HoughParameters(1,1, 12, 8, 4)
+#cannyParameters = CannyParameters(50,170)
+gaussParameters = GaussParameters(3,3,0.5,2)
+thrParameters = ThrParameters(9,2,14)
+
+
 for name in images:
     image = cv2.imread("test_images/" + name)
     o, lines = detectLanes(image)
