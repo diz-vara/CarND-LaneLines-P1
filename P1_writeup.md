@@ -14,6 +14,7 @@ The goals / steps of this project are the following:
 
 [//]: # (Image References)
 [image1]: ./examples/gray.png
+[image2]: ./examples/diff.png
 
 
 ---
@@ -24,29 +25,30 @@ The goals / steps of this project are the following:
 
 Project pipeline consists of 5 steps. 
 
-1. Image rescaling. 
+####1. Image rescaling. 
 Many image processing algorithms works differently on images of different scales.
 For example, you may need different Gauss kernel sizes for smoothing - and you certainly will need
 separate Hough algorithm parameters.
 I rescale all images to width 480 pixels (preserving poportions)
 
-2. Color conversion.
+####2. Color conversion.
 In this project I just use red channel - the resulting image has a good color contrast for white
 and yellow lines
+![image1]
 
-3. Lines extraction.
+####3. Lines extraction.
 I didn't use Canny edge extraction: it extracts several edges on wide lines
 and tends to find edges of dark patches, cracks etc.
 To extract light road markings, I use difference between original image
 and it's smoothed version. Good results was achieved using median blurring.
-![image1]
+![image2]
 Simple binary threshold extracts lane marking.
 I apply roi mask to the thresholded image to reduce the amount of work for Hough algorithm.
 
-4. Hough transform
+####4. Hough transform
 Hough transform extracts line segemnts. 
 
-5. Line filtering
+####5. Line filtering
 This process removes lines going in wrong directions. 
 
 
