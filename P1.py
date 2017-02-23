@@ -59,13 +59,12 @@ get_ipython().magic('matplotlib inline')
 
 #reading in an image
 # I use cv2, as I'm used to it
-image = cv2.imread('test_images/solidWhiteRight.jpg')
+image = cv2.imread('test_images/solidWhiteRight.png')
 
 
 #printing out some stats and plotting
 print('This image is:', type(image), 'with dimesions:', image.shape)
-
-showBGR(image)
+plt.imshow(image)
 
 
 
@@ -161,8 +160,9 @@ def maskROI(img, roi, center):
     topL = to01(center.X - roi.widthtop/2) * w;
     topR = to01(center.X + roi.widthtop/2) * w;
     bottomY = to01(center.Y + roi.bottom) * h;
-    bottomL = to01(center.X - roi.widthbottom/2) * w;
-    bottomR = to01(center.X + roi.widthbottom/2) * w;
+    #do not move bottom
+    bottomL = to01(0.5 - roi.widthbottom/2) * w;
+    bottomR = to01(0.5 + roi.widthbottom/2) * w;
 
     vertices = np.array([[(topL, topY), (topR, topY), 
                           (bottomR, bottomY), (bottomL, bottomY)]], 
@@ -188,19 +188,7 @@ def canny(img, parameters):
     """Applies the Canny transform"""
     return cv2.Canny(img, parameters.low, parameters.high)
     
-def extract_lines(img, tp, gp):
-     """
-     extracts white regions by subtracting 
-     blurred version of the input image
-     """
-     #kernel = np.ones( (p.kernelY, p.kernelX,  1), dtype=np.uint8)
-     #eroded = cv2.erode(img, kernel)
-     median = cv2.medianBlur(img,tp.kernelX)
-     median = cv2.subtract(img, median)
-     median = gaussian_blur(median, gp)
-     out = cv2.threshold( median, tp.threshold, 255, cv2.THRESH_BINARY)
-     return out[1]
-     
+    
 
 def gaussian_blur(img, p):
     """Applies a Gaussian Noise kernel"""
@@ -214,34 +202,33 @@ def region_of_interest(img, vertices):
     formed from `vertices`. The rest of the image is set to black.
     """
     #defining a blank mask to start with
-    mask = np.zeros_like(img)   
+    mask = np.zeros_like(img)
+   
     
     #defining a 3 channel or 1 channel color to fill the mask with depending on the input image
     if len(img.shape) > 2:
         channel_count = img.shape[2]  # i.e. 3 or 4 depending on your image
         ignore_mask_color = (255,) * channel_count
+        if (channel_count > 2):
+            mask = mask  + 20
+            ignore_mask_color = 0
     else:
+        channel_count = 1
         ignore_mask_color = 255
         
     #filling pixels inside the polygon defined by "vertices" with the fill color    
     cv2.fillPoly(mask, vertices, ignore_mask_color)
     
     #returning the image only where mask pixels are nonzero
-    masked_image = cv2.bitwise_and(img, mask)
+    if (channel_count > 2):
+        masked_image = cv2.subtract(img, mask)
+    else:    
+        masked_image = cv2.bitwise_and(img, mask)
     return masked_image
 
 
 def draw_lines(img, lines, color=[0, 0, 255], thickness=2):
     """
-    NOTE: this is the function you might want to use as a starting point once you want to 
-    average/extrapolate the line segments you detect to map out the full
-    extent of the lane (going from the result shown in raw-lines-example.mp4
-    to that shown in P1_example.mp4).  
-    
-    Think about things like separating line segments by their 
-    slope ((y2-y1)/(x2-x1)) to decide which segments are part of the left
-    line vs. the right line.  Then, you can average the position of each of 
-    the lines and extrapolate to the top and bottom of the lane.
     
     This function draws `lines` with `color` and `thickness`.    
     Lines are drawn on the image inplace (mutates the image).
@@ -259,7 +246,6 @@ def hough_lines(img, hp):
     Returns an image with hough lines drawn.
     """
     lines = cv2.HoughLinesP(img, hp.rho, hp.theta*np.pi/180, hp.thr, np.array([]), minLineLength=hp.minLen, maxLineGap=hp.maxGap)
-    #line_img = np.zeros((img.shape[0], img.shape[1], 3), dtype=np.uint8)
     return lines
     
    
@@ -280,91 +266,151 @@ def weighted_img(img, initial_img, α=0.8, β=1., λ=0.):
     return cv2.addWeighted(initial_img, α, img, β, λ)
 
 # <codecell> lines filtering
+
+def extract_lines(img, tp, gp):
+     """
+     extracts white regions by subtracting 
+     blurred version of the input image
+     and computing canny edges over the result
+     """
+     median = cv2.medianBlur(img,tp.kernelX)
+     diff = cv2.subtract(img, median)
+     #blr = gaussian_blur(diff, gp)
+     out = canny(diff,cannyParameters)
+     return out
+     
+#extends line segment to [top bottom] range
+def extend_line(line, top, bottom):
+    x0 = line[0]
+    x1 = line[2]
+    w = x1 - x0
+    h = line[3] - line[1]
+    if ( h == 0): 
+        h = 1e-5
+       
+    if w > 0:
+        x0 = x1 + (bottom-line[3]) * w /h
+        x1 = x1 + (top-line[3])*w / h
+    return [x0, bottom, x1, top]    
+
+
 def filter_lines(lines, center, roi, shape):
-    top = (center.Y) * shape[0]
     cX = center.X * shape[0]
-    bottom = (center.Y + roi.bottom) * shape[0]
-    if (bottom > shape[0]) :
-        bottom  = shape[0]
-    leftB = (center.X - roi.widthbottom/2) * shape[1]
-    rightB = (center.Y + roi.widthbottom/2) * shape[1]
+    top = (center.Y) * shape[0]
+    bottom = to01(center.Y + roi.bottom) * shape[0]
+
+    #do not move bottom
+    leftB = (0.5 - roi.widthbottom/2) * shape[1]
+    rightB = (0.5 + roi.widthbottom/2) * shape[1]
     leftT = (center.X - roi.widthtop) * shape[1]
     rightT = (center.Y + roi.widthtop) * shape[1]
 
-    raw_lines = []
-    left  = np.array(4)
-    nL = 0
-    right = np.array(4)
-    nR = 0
-
+    raw_left = []
+    raw_right = []
 
     for _line in lines:
         line = _line[0].tolist();
-        x0 = line[0]
-        x1 = line[2]
-        w = x1 - x0
-        h = line[3] - line[1]
-        if ( h == 0): 
-            h = 1e-5
-        
-        if w > 0:
-            x0 = x1 + (bottom-line[3]) * w /h
-            x1 = x1 + (top-line[3])*w / h
-        if (x0 > leftB and x1 > leftT and x0 < rightB and x1 < rightT):
-            raw_lines.append(line)
-            newLine = [x0, bottom, x1, top]
-            if ( x0 < cX) :
-                left = left + newLine
-                nL = nL + 1
+        extLine = extend_line(line, top, bottom);
+        if (extLine[0] > leftB and extLine[2] > leftT and extLine[0] < rightB and extLine[2] < rightT):
+            if ( extLine[0] < cX) :
+                raw_left.append(line);
             else:
-                right = right + newLine
-                nR = nR + 1
+                raw_right.append(line);                
                 
-                
-    lr = []        
-    if (nL >= 1):
-        left = left/nL
-        lr.append(left)
-    if (nR >= 1):
-        right = right/nR
-        lr.append(right)
-        
-    return raw_lines, lr   
+    return [raw_left, raw_right]   
 
+def line_length(line):
+    a = line[0]-line[2]
+    b = line[1]-line[3]
+    return (np.sqrt(a*a+b*b))
+
+def average_extended_lines(lines, top, bottom):
+    meanLine = np.array(4)
+    sumLen = 0
+    for line in lines:
+        length = line_length(line)
+        extLine = extend_line(line, top, bottom)
+        meanLine = meanLine + np.array(extLine) * length
+        sumLen = sumLen + length
+    if (sumLen > 0):
+        meanLine = meanLine/sumLen
+    return meanLine
+    
+def intersection(line1, line2):
+    v21 = Point(line2[0]-line1[0], line2[1] - line1[1])    
+    v1 = Point(line1[2]-line1[0], line1[3]-line1[1])
+    v2 = Point(line2[2]-line2[0], line2[3]-line2[1])
+    
+    cross = v1.X*v2.Y - v1.Y*v2.X
+    if (abs(cross) < 1e-8):
+        return None
+        
+    t1 = (v21.X * v2.Y - v21.Y * v2.X) / cross
+    result = Point(line1[0] + v1.X * t1, line1[1] + v1.Y * t1)
+    return result
     
 # <codecell> my function
 # ## Build a Lane Finding Pipeline
 # 
 # 
 def detectLanes(img, mode=2) :
-    #global gray;
-    #global lr_lines;
+    global drawingMode;
+    global lr_lines
     scaled, scale = rescale2width(img,480);
     gray = grayscale(scaled, mode);
-    #gray = gaussian_blur(gray,gaussParameters);
-    #gray = canny(gray, cannyParameters)
     gray = extract_lines(gray, thrParameters, gaussParameters);
     gray = maskROI(gray, roi, center);
+    #gray = cv2.morphologyEx(gray, cv2.MORPH_OPEN, np.ones((3,3),np.uint8))
     lines = hough_lines(gray, houghParameters)
     o =img.copy();
+
+    #o = maskROI(o, roi, center);
+
 
     if (not 'drawingMode' in globals()):
         drawingMode = 3
         
     if (mode == 0):
-        rawColor = [150,0,0]
+        rawRColor = [150,0,0]
+        rawLColor = [0,0,150]
     else:
-        rawColor = [0,0,150]
+        rawRColor = [0,0,150]
+        rawLColor = [150,0,0]
+
+    width = gray.shape[1]
+    height = gray.shape[0]
+    top = to01(center.Y + roi.top) * height
+    bottom = to01(center.Y + roi.bottom) * height
+    avLeft = np.array(4)
+    avRight = np.array(4)
+
     
 
     if (type(lines) == np.ndarray and len(lines) > 0):
-        raw_lines, lr_lines = filter_lines(lines, center, roi, gray.shape)
-        if ( (drawingMode & 2) and len (lr_lines) > 0):
-            draw_lines(o, (np.array([lr_lines])/scale).astype(int),[0,200,0],4)
-        if ( (drawingMode & 1) and len(raw_lines) > 0):    
-            draw_lines(o, (np.array([raw_lines]) / scale).astype(int),rawColor,2);                    
-
-        return o, lr_lines;
+        lr_lines = filter_lines(lines, center, roi, gray.shape)
+        if ( len(lr_lines[0]) > 0 ):    
+            if ( drawingMode & 1 ):
+                draw_lines(o, (np.array([lr_lines[0]]) / scale).astype(int),rawLColor,1);                    
+            avLeft = average_extended_lines(lr_lines[0], top, bottom)
+        if ( len(lr_lines[1]) > 0 ):    
+            if ( drawingMode & 1 ):
+                draw_lines(o, (np.array([lr_lines[1]]) / scale).astype(int),rawRColor,1);                    
+            avRight = average_extended_lines(lr_lines[1], top, bottom)
+        
+        if (avLeft.size == 4 and avRight.size == 4):        
+            if (drawingMode & 2) :
+                draw_lines(o, (np.array([[avLeft, avRight]]) / scale).astype(int),[0,190,0],3);                    
+    
+            newCenter = intersection(avLeft, avRight)
+            
+            #draw and update center
+            if (not newCenter is None):
+                cv2.drawMarker(o, (int(newCenter.X/scale), int(newCenter.Y/scale)), [0, 190, 0],
+                               cv2.MARKER_CROSS, 20, 2)
+                center.X = center.X * 0.5 + newCenter.X/width  * 0.5
+                center.Y = center.Y * 0.5 + newCenter.Y/height * 0.5
+            #print("center = ", center.X, center.Y)        
+        return o, [avLeft, avRight];
     else:
         return o, [];        
 
@@ -399,9 +445,10 @@ def imreadN(N):
 # then save them to the test_images directory.
 
 center = Point(0.5, 0.6)
-roi = Trapezia(-0.00, 0.55, 0.1, 0.9)
-houghParameters = HoughParameters(1,1, 12, 8, 4)
-gaussParameters = GaussParameters(3,3,0.5,2)
+roi = Trapezia(0.02, 0.55, 0.12, 0.9)
+houghParameters = HoughParameters(1,1, 10, 8, 4)
+gaussParameters = GaussParameters(3,3,0.5,1)
+cannyParameters = CannyParameters(90,170)
 thrParameters = ThrParameters(9,2,14)
 mode = 2 #red in BGR 
 imageDir = 'test_images/'
@@ -476,7 +523,8 @@ def process_image(image):
 # Let's try the one with the solid white lane on the right first ...
 
 # In[7]:
-drawingMode = RAW
+drawingMode = BOTH
+center = Point(0.5, 0.6)
 white_output = 'out/white.mp4'
 clip1 = VideoFileClip("solidWhiteRight.mp4")
 white_clip = clip1.fl_image(process_image) #NOTE: this function expects color images!!
@@ -503,7 +551,8 @@ HTML("""
 # Now for the one with the solid yellow lane on the left. This one's more tricky!
 
 # In[ ]:
-drawingMode=2
+drawingMode=BOTH
+center = Point(0.5, 0.6)
 yellow_output = 'out/yellow.mp4'
 clip2 = VideoFileClip('solidYellowLeft.mp4')
 yellow_clip = clip2.fl_image(process_image)
@@ -529,6 +578,8 @@ HTML("""
 # Try your lane finding pipeline on the video below.  Does it still work?  Can you figure out a way to make it more robust?  If you're up for the challenge, modify your pipeline so it works with this video and submit it along with the rest of your project!
 
 # In[ ]:
+
+center = Point(0.5, 0.6)
 
 challenge_output = 'out/extra.mp4'
 clip2 = VideoFileClip('challenge.mp4')
