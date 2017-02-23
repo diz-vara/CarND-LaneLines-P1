@@ -20,6 +20,7 @@ The goals / steps of this project are the following:
 [image1]: ./examples/gray.png
 [image2]: ./examples/diff.png
 [image3]: ./examples/result.png
+[image4]: ./examples/white_masked.png
 
 
 ---
@@ -46,6 +47,7 @@ To extract light road markings, I use difference between original image
 and it's smoothed version. Good results was achieved using median blurring.
 
 ![image2]
+
 Canny edge detector applyed to difference image extracts borders of lane
 markings.
 I apply ROI mask to the thresholded image to reduce the amount of work for Hough algorithm.
@@ -81,9 +83,13 @@ This pipeline has a number of shortcomings:
 
 A possible improvement would be to:
 - dynamically update ROI position by vanishing point recalculation
+
 (done in second version, result can be seen in out/extra_masked.mp4)
+
+![image4]
+
 - try another 'line extracting' algorithms (use first quartile instead of median, 
-use gray erosion etc).
+use use gray erosion etc).
 - use morphological analysis to remove small particles and reduce the width of the
 wide ones
 - use weighted average of consecutive frames to get a stable result on sparse marking
