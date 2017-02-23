@@ -42,14 +42,12 @@ and yellow lines
 ![image1]
 
 ####3. Lines extraction.
-I didn't use Canny edge extraction: it extracts several edges on wide lines
-and tends to find edges of dark patches, cracks etc.
 To extract light road markings, I use difference between original image
 and it's smoothed version. Good results was achieved using median blurring.
 
 ![image2]
-
-Simple binary threshold extracts lane marking.
+Canny edge detector applyed to difference image extracts borders of lane
+markings.
 I apply ROI mask to the thresholded image to reduce the amount of work for Hough algorithm.
 
 ####4. Hough transform
@@ -65,6 +63,10 @@ trapezium.
 Remaining lines are separated to two groups (left and right) and averaged.
 The next image shows the result with raw line segments in red and 
 averaged lines shown in green.
+In second version for more consistent results I use weighted average
+with weights equal to line segment length (thus I reduce the influence of
+short lines going in wrong directions)
+
 ![image3]
 
 ###2. Identify potential shortcomings
@@ -79,6 +81,7 @@ This pipeline has a number of shortcomings:
 
 A possible improvement would be to:
 - dynamically update ROI position by vanishing point recalculation
+(done in second version, result can be seen in out/extra_masked.mp4)
 - try another 'line extracting' algorithms (use first quartile instead of median, 
 use gray erosion etc).
 - use morphological analysis to remove small particles and reduce the width of the
