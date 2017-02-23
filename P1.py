@@ -188,14 +188,17 @@ def canny(img, parameters):
     """Applies the Canny transform"""
     return cv2.Canny(img, parameters.low, parameters.high)
     
-def extract_lines(img, p):
+def extract_lines(img, tp, gp):
      """
-     extracts white regions by substracting 
-     gray-eroded version of the input image
+     extracts white regions by subtracting 
+     blurred version of the input image
      """
-     kernel = np.ones( (p.kernelY, p.kernelX,  1), dtype=np.uint8)
-     eroded = cv2.erode(img, kernel)
-     out = cv2.threshold( img - eroded, p.threshold, 255, cv2.THRESH_BINARY)
+     #kernel = np.ones( (p.kernelY, p.kernelX,  1), dtype=np.uint8)
+     #eroded = cv2.erode(img, kernel)
+     median = cv2.medianBlur(img,tp.kernelX)
+     median = cv2.subtract(img, median)
+     median = gaussian_blur(median, gp)
+     out = cv2.threshold( median, tp.threshold, 255, cv2.THRESH_BINARY)
      return out[1]
      
 
@@ -249,17 +252,17 @@ def draw_lines(img, lines, color=[0, 0, 255], thickness=2):
         for x1,y1,x2,y2 in line:
             cv2.line(img, (x1, y1), (x2, y2), color, thickness)
 
-def hough_lines(img, rho, theta, threshold, min_line_len, max_line_gap):
+def hough_lines(img, hp):
     """
     `img` should be the output of a Canny transform.
         
     Returns an image with hough lines drawn.
     """
-    lines = cv2.HoughLinesP(img, rho, theta, threshold, np.array([]), minLineLength=min_line_len, maxLineGap=max_line_gap)
+    lines = cv2.HoughLinesP(img, hp.rho, hp.theta*np.pi/180, hp.thr, np.array([]), minLineLength=hp.minLen, maxLineGap=hp.maxGap)
+    #line_img = np.zeros((img.shape[0], img.shape[1], 3), dtype=np.uint8)
     return lines
-        
-
     
+   
 # Python 3 has support for cool math symbols.
 
 def weighted_img(img, initial_img, α=0.8, β=1., λ=0.):
@@ -276,27 +279,94 @@ def weighted_img(img, initial_img, α=0.8, β=1., λ=0.):
     """
     return cv2.addWeighted(initial_img, α, img, β, λ)
 
+# <codecell> lines filtering
+def filter_lines(lines, center, roi, shape):
+    top = (center.Y) * shape[0]
+    cX = center.X * shape[0]
+    bottom = (center.Y + roi.bottom) * shape[0]
+    if (bottom > shape[0]) :
+        bottom  = shape[0]
+    leftB = (center.X - roi.widthbottom/2) * shape[1]
+    rightB = (center.Y + roi.widthbottom/2) * shape[1]
+    leftT = (center.X - roi.widthtop) * shape[1]
+    rightT = (center.Y + roi.widthtop) * shape[1]
+
+    raw_lines = []
+    left  = np.array(4)
+    nL = 0
+    right = np.array(4)
+    nR = 0
+
+
+    for _line in lines:
+        line = _line[0].tolist();
+        x0 = line[0]
+        x1 = line[2]
+        w = x1 - x0
+        h = line[3] - line[1]
+        if ( h == 0): 
+            h = 1e-5
+        
+        if w > 0:
+            x0 = x1 + (bottom-line[3]) * w /h
+            x1 = x1 + (top-line[3])*w / h
+        if (x0 > leftB and x1 > leftT and x0 < rightB and x1 < rightT):
+            raw_lines.append(line)
+            newLine = [x0, bottom, x1, top]
+            if ( x0 < cX) :
+                left = left + newLine
+                nL = nL + 1
+            else:
+                right = right + newLine
+                nR = nR + 1
+                
+                
+    lr = []        
+    if (nL >= 1):
+        left = left/nL
+        lr.append(left)
+    if (nR >= 1):
+        right = right/nR
+        lr.append(right)
+        
+    return raw_lines, lr   
+
+    
 # <codecell> my function
 # ## Build a Lane Finding Pipeline
 # 
 # 
-def detectLanes(img) :
-    global gray;
+def detectLanes(img, mode=2) :
+    #global gray;
+    #global lr_lines;
     scaled, scale = rescale2width(img,480);
-    gray = grayscale(scaled,2);
-    gray = gaussian_blur(gray,gaussParameters);
+    gray = grayscale(scaled, mode);
+    #gray = gaussian_blur(gray,gaussParameters);
     #gray = canny(gray, cannyParameters)
-    gray = extract_lines(gray, thrParameters);
+    gray = extract_lines(gray, thrParameters, gaussParameters);
     gray = maskROI(gray, roi, center);
-    lines = hough_lines(gray, houghParameters.rho,
-                        houghParameters.theta, 
-                        houghParameters.thr,
-                        houghParameters.minLen,
-                        houghParameters.maxGap);
-    out = img.copy()    
-    # I do not use weighted image                
-    draw_lines(out, (lines/scale).astype(int))                    
-    return out, lines;
+    lines = hough_lines(gray, houghParameters)
+    o =img.copy();
+
+    if (not 'drawingMode' in globals()):
+        drawingMode = 3
+        
+    if (mode == 0):
+        rawColor = [150,0,0]
+    else:
+        rawColor = [0,0,150]
+    
+
+    if (type(lines) == np.ndarray and len(lines) > 0):
+        raw_lines, lr_lines = filter_lines(lines, center, roi, gray.shape)
+        if ( (drawingMode & 2) and len (lr_lines) > 0):
+            draw_lines(o, (np.array([lr_lines])/scale).astype(int),[0,200,0],4)
+        if ( (drawingMode & 1) and len(raw_lines) > 0):    
+            draw_lines(o, (np.array([raw_lines]) / scale).astype(int),rawColor,2);                    
+
+        return o, lr_lines;
+    else:
+        return o, [];        
 
     
 
@@ -311,45 +381,59 @@ def detectLanes(img) :
 import os
 imageDir="test_images/"
 
-images = os.listdir(imageDir)
+image_list = os.listdir(imageDir)
 
 def imreadN(N):
-    image = cv2.imread(imageDir + images[N])
+    image = cv2.imread(imageDir + image_list[N])
     return image
     
 
-# <codecell>
-
-center = Point(0.5, 0.65)
-roi = Trapezia(-0.05, 1, 0.1, 0.8)
-houghParameters = HoughParameters(1,1, 20, 11, 14)
-cannyParameters = CannyParameters(50,170)
-gaussParameters = GaussParameters(3,3,1,2)
-thrParameters = ThrParameters(5,2,25)
 
 
 # <codecell>
-for name in images:
-    image = cv2.imread("test_images/" + name)
-    o, lines = detectLanes(image)
-    print(name)
-    plt.figure(name)
+# Build the pipeline and run your solution on all test_images. Make copies into the test_images directory, and you can use the images in your writeup report.
+# 
+# Try tuning the various parameters, especially the low and high Canny thresholds as well as the Hough lines parameters.
+
+# TODO: Build your pipeline that will draw lane lines on the test_images
+# then save them to the test_images directory.
+
+center = Point(0.5, 0.6)
+roi = Trapezia(-0.00, 0.55, 0.1, 0.9)
+houghParameters = HoughParameters(1,1, 12, 8, 4)
+gaussParameters = GaussParameters(3,3,0.5,2)
+thrParameters = ThrParameters(9,2,14)
+mode = 2 #red in BGR 
+imageDir = 'test_images/'
+outDir = 'out'
+RAW = 1
+AVR = 2
+BOTH = 3
+drawingMode = BOTH
+
+
+if (not os.path.isdir(outDir) ):
+    os.mkdir(outDir)
+
+
+for filename in image_list:
+    image = cv2.imread("test_images/" + filename)
+    o, lines = detectLanes(image,mode)
+    print(filename)
+    plt.figure(filename)
     showBGR(o)
+    outname = "out/" + filename
+    cv2.imwrite(outname,o)
     #input("Press Enter to continue...")
     
     
 
 
 
-# Build the pipeline and run your solution on all test_images. Make copies into the test_images directory, and you can use the images in your writeup report.
-# 
-# Try tuning the various parameters, especially the low and high Canny thresholds as well as the Hough lines parameters.
 
 
 # In[5]:
 
-# TODO: Build your pipeline that will draw lane lines on the test_images
-# then save them to the test_images directory.
 
 
 # ## Test on Videos
@@ -372,6 +456,8 @@ for name in images:
 # ```
 # **Follow the instructions in the error message and check out [this forum post](https://carnd-forums.udacity.com/display/CAR/questions/26218840/import-videofileclip-error) for more troubleshooting tips across operating systems.**
 
+
+
 # In[3]:
 
 # Import everything needed to edit/save/watch video clips
@@ -382,19 +468,16 @@ from IPython.display import HTML
 # In[6]:
 
 def process_image(image):
-    # NOTE: The output you return should be a color image (3 channel) for processing video below
-    # TODO: put your pipeline here,
-    # you should return the final output (image where lines are drawn on lanes)
-    result = image
+    # here I call detectLanes with mode == 0 (Red in RGB)
+    result, lr = detectLanes(image,0)
 
     return result
-
 
 # Let's try the one with the solid white lane on the right first ...
 
 # In[7]:
-
-white_output = 'white.mp4'
+drawingMode = RAW
+white_output = 'out/white.mp4'
 clip1 = VideoFileClip("solidWhiteRight.mp4")
 white_clip = clip1.fl_image(process_image) #NOTE: this function expects color images!!
 get_ipython().magic('time white_clip.write_videofile(white_output, audio=False)')
@@ -420,8 +503,8 @@ HTML("""
 # Now for the one with the solid yellow lane on the left. This one's more tricky!
 
 # In[ ]:
-
-yellow_output = 'yellow.mp4'
+drawingMode=2
+yellow_output = 'out/yellow.mp4'
 clip2 = VideoFileClip('solidYellowLeft.mp4')
 yellow_clip = clip2.fl_image(process_image)
 get_ipython().magic('time yellow_clip.write_videofile(yellow_output, audio=False)')
@@ -447,7 +530,7 @@ HTML("""
 
 # In[ ]:
 
-challenge_output = 'extra.mp4'
+challenge_output = 'out/extra.mp4'
 clip2 = VideoFileClip('challenge.mp4')
 challenge_clip = clip2.fl_image(process_image)
 get_ipython().magic('time challenge_clip.write_videofile(challenge_output, audio=False)')
