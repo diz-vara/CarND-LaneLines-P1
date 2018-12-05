@@ -59,7 +59,7 @@ get_ipython().magic('matplotlib inline')
 
 #reading in an image
 # I use cv2, as I'm used to it
-image = cv2.imread('test_images/solidWhiteRight.jpg')
+image = cv2.imread('test_images/solidWhiteRight.png')
 
 
 #printing out some stats and plotting
